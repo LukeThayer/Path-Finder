@@ -6,16 +6,16 @@
 
 #define MAP_HEIGHT_RESOLUTION 20
 #define MAP_WIDTH_RESOLUTION 20
-#define PIXEL_WIDTH 35
-#define PIXEL_HEIGHT 35
+#define PIXEL_WIDTH 100
+#define PIXEL_HEIGHT 100
 class PathFinder : public olc::PixelGameEngine
 {
 public:
     enum Type //type of pixel
     {
         defualtPixel,
-        visitedPixel,
-        obsticalPixel,
+        searchedPixel,
+        obsticlePixel,
         goalPixel,
         startPixel,
         pathPixel
@@ -37,6 +37,7 @@ public:
     PathFinder() // names the window
     {
         sAppName = "PathFinder";
+        SetPixelMode(olc::Pixel::Mode::ALPHA);
     }
 
     bool OnUserCreate() override
@@ -53,14 +54,25 @@ public:
         {
             if (nodes[searchIndex].cost != 0)
             {
+                // printf("LOL SEARCHING");
                 PathUpdate();
+            }
+            else
+            {
+                printf("GOAL FOUND");
             }
         }
         UpdateMap(); //updates the current map
         return true;
     }
 
+    void setPixelType(int x, int y, Type type)
+    {
+        nodes[indexFromXY(x, y)].pixelType = type;
+    }
+
 private:
+    bool drawTestMap = true;
     bool startNotExists = true;
     bool goalNotExists = true;
     int startIndex;
@@ -69,32 +81,47 @@ private:
     int cheapestIndex;
     sNode *nodes = nullptr;
 
+    int indexFromXY(int x, int y)
+    {
+        auto _x = std::clamp(x, 0, ScreenWidth());
+        auto _y = std::clamp(y, 0, ScreenHeight());
+        return _x + _y * ScreenWidth();
+    }
+
     void PathUpdate()
     {
-        int localIndex = 0;
-        int localPixelIndex[4];
-        nodes[cheapestIndex].cost = 100;
-
         for (int y = -1; y <= 1; y++)
         {
             for (int x = -1; x <= 1; x++)
             {
                 if ((x != 0 || y != 0) && (y == 0 || x == 0))
                 {
-                    localPixelIndex[localIndex] = (nodes[searchIndex].x + x) + ((nodes[searchIndex].y + y) * ScreenHeight());
+                    auto _x = nodes[searchIndex].x + x;
+                    auto _y = nodes[searchIndex].y + y;
+                    auto i = indexFromXY(x, y);
+                    auto pixel = &nodes[i];
 
-                    if (nodes[localPixelIndex[localIndex]].pixelType == defualtPixel)
+                    if (pixel->pixelType == defualtPixel)
                     {
-                        CostCalc(&nodes[localPixelIndex[localIndex]]);
+                        auto cost = CostCalc(pixel);
 
-                        nodes[localPixelIndex[localIndex]].pixelType = visitedPixel;
+                        if (pixel->cost == std::numeric_limits<int>::max())
+                        {
+                            pixel->cost = 0;
+                        }
+                        pixel->cost += cost;
+
+                        pixel->pixelType = searchedPixel;
+
+                        auto s = "Cost{x:" + std::to_string(_x) + ", y:" + std::to_string(_y) + "}:" + std::to_string(cost);
+                        // DrawString(0, 0, s);
+                        std::cout << s;
                     }
 
-                    if (nodes[localPixelIndex[localIndex]].cost < nodes[cheapestIndex].cost)
+                    if (pixel->cost < nodes[cheapestIndex].cost)
                     {
-                        cheapestIndex = localPixelIndex[localIndex];
+                        cheapestIndex = i;
                     }
-                    localIndex++;
                 }
             }
         }
@@ -110,16 +137,38 @@ private:
         startNotExists = true;
         goalNotExists = true;
         state = drawing;
+        if (nodes != nullptr)
+        {
+            delete nodes;
+        }
         nodes = new sNode[ScreenHeight() * ScreenWidth()];
         for (int x = 0; x < ScreenWidth(); x++)
         {
             for (int y = 0; y < ScreenHeight(); y++)
             {
-                nodes[y * ScreenHeight() + x].cost = 0;
-                nodes[y * ScreenHeight() + x].x = x;
-                nodes[y * ScreenHeight() + x].y = y;
-                nodes[y * ScreenHeight() + x].pixelType = defualtPixel;
+                nodes[indexFromXY(x, y)].cost = std::numeric_limits<int>::max();
+                nodes[indexFromXY(x, y)].x = x;
+                nodes[indexFromXY(x, y)].y = y;
+                nodes[indexFromXY(x, y)].pixelType = defualtPixel;
             }
+        }
+
+        if (drawTestMap)
+        {
+            startNotExists = false;
+            goalNotExists = false;
+
+            setPixelType(2, 2, PathFinder::Type::startPixel);
+            startIndex = indexFromXY(2, 2);
+            searchIndex = startIndex;
+
+            for (int x = 0; x < 19; x++)
+            {
+                setPixelType(x, 10, PathFinder::Type::obsticlePixel);
+            }
+
+            setPixelType(18, 18, PathFinder::Type::goalPixel);
+            goalIndex = indexFromXY(18, 18);
         }
     }
     void UpdateMap() // draws the map with most current data
@@ -130,29 +179,29 @@ private:
                 uint32_t index = y * ScreenHeight() + x;
                 switch (nodes[index].pixelType)
                 {
-                case 0:
+                case Type::defualtPixel:
                     Draw(x, y, olc::Pixel(olc::BLUE));
                     break;
-                case 1:
+                case Type::searchedPixel:
                     Draw(x, y, olc::Pixel(olc::CYAN));
                     break;
-                case 2:
+                case Type::obsticlePixel:
                     Draw(x, y, olc::Pixel(olc::DARK_GREY));
                     break;
-                case 3:
+                case Type::goalPixel:
                     Draw(x, y, olc::Pixel(olc::RED));
                     break;
-                case 4:
+                case Type::startPixel:
                     Draw(x, y, olc::Pixel(olc::GREEN));
                     break;
-                case 5:
+                case Type::pathPixel:
                     Draw(x, y, olc::Pixel(olc::YELLOW));
                 default:
                     break;
                 }
             };
 
-        FillRect(GetMouseX(), GetMouseY(), 1, 1, olc::Pixel(olc::BLACK));
+        FillRect(GetMouseX(), GetMouseY(), 1, 1, olc::Pixel(0, 0, 0, 64));
         return;
     }
 
@@ -162,10 +211,10 @@ private:
         {
             if (get_key('Q'))
             {
-
-                nodes[GetMouseY() * ScreenHeight() + GetMouseX()].pixelType = obsticalPixel;
+                nodes[GetMouseY() * ScreenHeight() + GetMouseX()].pixelType = obsticlePixel;
                 nodes[GetMouseY() * ScreenHeight() + GetMouseX()].cost = 1000;
-            };
+            }
+
             if (get_key('w'))
             {
                 if (startNotExists)
@@ -173,11 +222,11 @@ private:
                     nodes[GetMouseY() * ScreenHeight() + GetMouseX()].pixelType = startPixel;
                     startNotExists = false;
                     startIndex = GetMouseY() * ScreenHeight() + GetMouseX();
-                    searchIndex = startIndex;
 
-                    CostCalc(&nodes[startIndex]);
+                    nodes[startIndex].cost = CostCalc(&nodes[startIndex]);
                 }
-            };
+            }
+
             if (get_key('e'))
             {
                 if (goalNotExists)
@@ -187,28 +236,33 @@ private:
                     goalIndex = GetMouseY() * ScreenHeight() + GetMouseX();
                     nodes[goalIndex].cost = 0;
                 }
-            };
+            }
         }
+
         if (get_key('s'))
         {
             if (!goalNotExists && !startNotExists)
             {
                 state = running;
+                cheapestIndex = startIndex;
+                searchIndex = startIndex;
             }
-        };
+        }
 
         if (get_key('d'))
         {
             state = drawing;
-        };
+        }
+
         if (get_key('a'))
         {
             Reset();
-        };
+        }
     }
-    void CostCalc(sNode *pixel)
+
+    float CostCalc(sNode *pixel)
     {
-        pixel->cost = (sqrtf(float(powf((pixel->x - nodes[goalIndex].x), 2) + float(powf((pixel->y - nodes[goalIndex].y), 2)))));
+        return sqrtf(float(powf((pixel->x - nodes[goalIndex].x), 2) + float(powf((pixel->y - nodes[goalIndex].y), 2))));
     }
 };
 
@@ -216,7 +270,9 @@ int main(int argc, char const *argv[])
 {
     PathFinder demo;
     if (demo.Construct(MAP_HEIGHT_RESOLUTION, MAP_WIDTH_RESOLUTION, PIXEL_HEIGHT, PIXEL_WIDTH))
+    {
         demo.Start();
+    }
 
     return 0;
 }

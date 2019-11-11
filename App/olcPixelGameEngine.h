@@ -236,6 +236,7 @@
 #include <map>
 #include <functional>
 #include <algorithm>
+#include <unistd.h>
 
 #undef min
 #undef max
@@ -1808,6 +1809,7 @@ namespace olc
 			// Run as fast as possible
 			while (bAtomActive)
 			{
+				usleep(100000/3);
 				// Handle Timing
 				tp2 = std::chrono::system_clock::now();
 				std::chrono::duration<float> elapsedTime = tp2 - tp1;

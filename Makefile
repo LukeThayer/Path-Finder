@@ -5,6 +5,6 @@ INCLUDEDIR = -I ./include
 EXE = output
 
 all:
-	clang++ -arch x86_64 -std=c++14 -Wall $(LIBRARIES) $(LIBDIR) $(INCLUDEDIR) App/*.cpp -o $(EXE)
+	clang++ -arch x86_64 -std=c++17 -Wall $(LIBRARIES) $(LIBDIR) $(INCLUDEDIR) App/*.cpp -o $(EXE)
 clean:
 	-rm $(EXE)
