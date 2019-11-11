@@ -83,8 +83,8 @@ private:
 
     int indexFromXY(int x, int y)
     {
-        auto _x = std::clamp(x, 0, ScreenWidth());
-        auto _y = std::clamp(y, 0, ScreenHeight());
+        auto _x = std::clamp(x, 0, ScreenWidth() - 1);
+        auto _y = std::clamp(y, 0, ScreenHeight() - 1);
         return _x + _y * ScreenWidth();
     }
 
@@ -98,19 +98,12 @@ private:
                 {
                     auto _x = nodes[searchIndex].x + x;
                     auto _y = nodes[searchIndex].y + y;
-                    auto i = indexFromXY(x, y);
+                    auto i = indexFromXY(_x, _y);
                     auto pixel = &nodes[i];
+                    auto cost = CostCalc(pixel);
 
                     if (pixel->pixelType == defualtPixel)
                     {
-                        auto cost = CostCalc(pixel);
-
-                        if (pixel->cost == std::numeric_limits<int>::max())
-                        {
-                            pixel->cost = 0;
-                        }
-                        pixel->cost += cost;
-
                         pixel->pixelType = searchedPixel;
 
                         auto s = "Cost{x:" + std::to_string(_x) + ", y:" + std::to_string(_y) + "}:" + std::to_string(cost);
@@ -118,9 +111,17 @@ private:
                         std::cout << s;
                     }
 
-                    if (pixel->cost < nodes[cheapestIndex].cost)
+                    if (cost < nodes[cheapestIndex].cost)
                     {
                         cheapestIndex = i;
+                    }
+                    else
+                    {
+                        if (pixel->cost == std::numeric_limits<int>::max())
+                        {
+                            pixel->cost = 0;
+                        }
+                        pixel->cost += cost;
                     }
                 }
             }
@@ -160,7 +161,6 @@ private:
 
             setPixelType(2, 2, PathFinder::Type::startPixel);
             startIndex = indexFromXY(2, 2);
-            searchIndex = startIndex;
 
             for (int x = 0; x < 19; x++)
             {
@@ -262,6 +262,10 @@ private:
 
     float CostCalc(sNode *pixel)
     {
+        if (pixel->pixelType == Type::obsticlePixel)
+        {
+            return std::numeric_limits<float>::max();
+        }
         return sqrtf(float(powf((pixel->x - nodes[goalIndex].x), 2) + float(powf((pixel->y - nodes[goalIndex].y), 2))));
     }
 };
