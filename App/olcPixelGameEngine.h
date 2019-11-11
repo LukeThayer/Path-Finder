@@ -1809,7 +1809,7 @@ namespace olc
 			// Run as fast as possible
 			while (bAtomActive)
 			{
-				usleep(100000/3);
+				usleep(100000);
 				// Handle Timing
 				tp2 = std::chrono::system_clock::now();
 				std::chrono::duration<float> elapsedTime = tp2 - tp1;

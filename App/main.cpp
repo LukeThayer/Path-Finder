@@ -25,7 +25,7 @@ public:
         Type pixelType;
         int x;
         int y;
-        double cost;
+        float cost;
     };
     enum State //what the program is doing currently
     {
@@ -52,7 +52,7 @@ public:
         Input();              //looks for user input
         if (state == running) //begins program once prompted
         {
-            if (nodes[searchIndex].cost != 0)
+            if (searchIndex != goalIndex)
             {
                 // printf("LOL SEARCHING");
                 PathUpdate();
@@ -88,41 +88,58 @@ private:
         return _x + _y * ScreenWidth();
     }
 
-    void PathUpdate()
+    float costCalc(sNode *pixel)
     {
+        if (pixel->pixelType == Type::obsticlePixel)
+        {
+            return std::numeric_limits<float>::max();
+        }
+
+        auto xd = pixel->x - nodes[goalIndex].x;
+        auto xsq = powf(xd, 2);
+
+        auto yd = pixel->y - nodes[goalIndex].y;
+        auto ysq = powf(yd, 2);
+
+        return sqrtf(xsq + ysq);
+    }
+
+    void PathUpdate()
+    {        
         for (int y = -1; y <= 1; y++)
         {
             for (int x = -1; x <= 1; x++)
             {
+                auto searchNode = &nodes[searchIndex];
+                auto _x = searchNode->x + x;
+                auto _y = searchNode->y + y;
+                auto i = indexFromXY(_x, _y);
+                auto pixel = &nodes[i];
+                auto cost = costCalc(pixel);
+                
+                //SEARCH FILTER
                 if ((x != 0 || y != 0) && (y == 0 || x == 0))
                 {
-                    auto _x = nodes[searchIndex].x + x;
-                    auto _y = nodes[searchIndex].y + y;
-                    auto i = indexFromXY(_x, _y);
-                    auto pixel = &nodes[i];
-                    auto cost = CostCalc(pixel);
+                    if (pixel->cost == std::numeric_limits<float>::max())
+                    {
+                        pixel->cost = 0;
+                    }
+                    pixel->cost += cost;
 
                     if (pixel->pixelType == defualtPixel)
                     {
                         pixel->pixelType = searchedPixel;
-
                         auto s = "Cost{x:" + std::to_string(_x) + ", y:" + std::to_string(_y) + "}:" + std::to_string(cost);
-                        // DrawString(0, 0, s);
-                        std::cout << s;
                     }
 
-                    if (cost < nodes[cheapestIndex].cost)
+                    if (cost <= nodes[cheapestIndex].cost)
                     {
                         cheapestIndex = i;
                     }
-                    else
-                    {
-                        if (pixel->cost == std::numeric_limits<int>::max())
-                        {
-                            pixel->cost = 0;
-                        }
-                        pixel->cost += cost;
-                    }
+                    // else
+                    // {
+                        searchNode->cost += costCalc(searchNode);
+                    // }
                 }
             }
         }
@@ -133,6 +150,7 @@ private:
 
         return;
     }
+
     void Reset() // returns all pixels to defualt type
     {
         startNotExists = true;
@@ -147,7 +165,7 @@ private:
         {
             for (int y = 0; y < ScreenHeight(); y++)
             {
-                nodes[indexFromXY(x, y)].cost = std::numeric_limits<int>::max();
+                nodes[indexFromXY(x, y)].cost = std::numeric_limits<float>::max();
                 nodes[indexFromXY(x, y)].x = x;
                 nodes[indexFromXY(x, y)].y = y;
                 nodes[indexFromXY(x, y)].pixelType = defualtPixel;
@@ -171,22 +189,30 @@ private:
             goalIndex = indexFromXY(18, 18);
         }
     }
+
+    olc::Pixel pixelFromNode(sNode* pixel) {
+        uint8_t color = std::clamp<float>(pixel->cost / 10.0, 0, 255);
+
+        if (indexFromXY(pixel->x, pixel->y) == searchIndex)
+        {
+            return olc::Pixel(255,0,255, color + 25);
+        }
+        return olc::Pixel(color, color, color);
+    }
+
     void UpdateMap() // draws the map with most current data
     {
         for (int x = 0; x < ScreenWidth(); x++)
             for (int y = 0; y < ScreenHeight(); y++)
             {
-                uint32_t index = y * ScreenHeight() + x;
+                uint32_t index = indexFromXY(x,y);
                 switch (nodes[index].pixelType)
                 {
                 case Type::defualtPixel:
                     Draw(x, y, olc::Pixel(olc::BLUE));
                     break;
-                case Type::searchedPixel:
-                    Draw(x, y, olc::Pixel(olc::CYAN));
-                    break;
                 case Type::obsticlePixel:
-                    Draw(x, y, olc::Pixel(olc::DARK_GREY));
+                    Draw(x, y, olc::Pixel(olc::VERY_DARK_MAGENTA));
                     break;
                 case Type::goalPixel:
                     Draw(x, y, olc::Pixel(olc::RED));
@@ -195,11 +221,13 @@ private:
                     Draw(x, y, olc::Pixel(olc::GREEN));
                     break;
                 case Type::pathPixel:
-                    Draw(x, y, olc::Pixel(olc::YELLOW));
+                case Type::searchedPixel:
+                    Draw(x, y, pixelFromNode(&nodes[index]));
+                    break;
                 default:
                     break;
                 }
-            };
+        };
 
         FillRect(GetMouseX(), GetMouseY(), 1, 1, olc::Pixel(0, 0, 0, 64));
         return;
@@ -222,8 +250,6 @@ private:
                     nodes[GetMouseY() * ScreenHeight() + GetMouseX()].pixelType = startPixel;
                     startNotExists = false;
                     startIndex = GetMouseY() * ScreenHeight() + GetMouseX();
-
-                    nodes[startIndex].cost = CostCalc(&nodes[startIndex]);
                 }
             }
 
@@ -258,15 +284,6 @@ private:
         {
             Reset();
         }
-    }
-
-    float CostCalc(sNode *pixel)
-    {
-        if (pixel->pixelType == Type::obsticlePixel)
-        {
-            return std::numeric_limits<float>::max();
-        }
-        return sqrtf(float(powf((pixel->x - nodes[goalIndex].x), 2) + float(powf((pixel->y - nodes[goalIndex].y), 2))));
     }
 };
 
