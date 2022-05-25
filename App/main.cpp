@@ -26,6 +26,7 @@ public:
         int x;
         int y;
         float cost;
+        int costMore = 0;
     };
     enum State //what the program is doing currently
     {
@@ -72,7 +73,7 @@ public:
     }
 
 private:
-    bool drawTestMap = true;
+    bool drawTestMap = false;
     bool startNotExists = true;
     bool goalNotExists = true;
     int startIndex;
@@ -101,52 +102,88 @@ private:
         auto yd = pixel->y - nodes[goalIndex].y;
         auto ysq = powf(yd, 2);
 
-        return sqrtf(xsq + ysq);
+        return sqrtf(xsq + ysq) + pixel->costMore;
     }
 
     void PathUpdate()
-    {        
+    {
+        bool notUpdated = 1;
         for (int y = -1; y <= 1; y++)
         {
             for (int x = -1; x <= 1; x++)
             {
-                auto searchNode = &nodes[searchIndex];
+                auto *searchNode = &nodes[searchIndex];
                 auto _x = searchNode->x + x;
                 auto _y = searchNode->y + y;
                 auto i = indexFromXY(_x, _y);
                 auto pixel = &nodes[i];
                 auto cost = costCalc(pixel);
-                
+
                 //SEARCH FILTER
                 if ((x != 0 || y != 0) && (y == 0 || x == 0))
                 {
-                    if (pixel->cost == std::numeric_limits<float>::max())
+                    if (pixel->pixelType != obsticlePixel)
                     {
-                        pixel->cost = 0;
-                    }
-                    pixel->cost += cost;
+                        if (pixel->cost == std::numeric_limits<float>::max())
+                        {
+                            pixel->cost = cost;
+                        }
 
-                    if (pixel->pixelType == defualtPixel)
-                    {
-                        pixel->pixelType = searchedPixel;
-                        auto s = "Cost{x:" + std::to_string(_x) + ", y:" + std::to_string(_y) + "}:" + std::to_string(cost);
-                    }
+                        if (pixel->pixelType == defualtPixel)
+                        {
+                            pixel->pixelType = searchedPixel;
+                        }
 
-                    if (cost <= nodes[cheapestIndex].cost)
-                    {
-                        cheapestIndex = i;
+                        if (pixel->pixelType == searchedPixel || pixel->pixelType == goalPixel)
+                            if (cost < nodes[cheapestIndex].cost)
+                            {
+                                cheapestIndex = i;
+                                notUpdated = 0;
+                            }
                     }
-                    // else
-                    // {
-                        searchNode->cost += costCalc(searchNode);
-                    // }
+                }
+            }
+        }
+
+        // nodes[cheapestIndex].cost += 10;
+
+        if (notUpdated)
+        {
+            nodes[cheapestIndex].costMore += 2;
+            for (int y = -1; y <= 1; y++)
+            {
+                for (int x = -1; x <= 1; x++)
+                {
+                    auto *searchNode = &nodes[searchIndex];
+                    auto _x = searchNode->x + x;
+                    auto _y = searchNode->y + y;
+                    auto i = indexFromXY(_x, _y);
+                    auto pixel = &nodes[i];
+                    auto cost = costCalc(pixel);
+
+                    //SEARCH FILTER
+                    if ((x != 0 || y != 0) && (y == 0 || x == 0))
+                    {
+                        if (pixel->pixelType != obsticlePixel)
+                        {
+                            nodes[cheapestIndex].cost += .5;
+
+                            if (cost < nodes[cheapestIndex].cost)
+                            {
+
+                                cheapestIndex = i;
+                                notUpdated = 1;
+                            }
+                        }
+                    }
                 }
             }
         }
 
         searchIndex = cheapestIndex;
 
-        nodes[searchIndex].pixelType = pathPixel;
+        if (nodes[cheapestIndex].pixelType != goalPixel)
+            nodes[cheapestIndex].pixelType = pathPixel;
 
         return;
     }
@@ -190,22 +227,23 @@ private:
         }
     }
 
-    olc::Pixel pixelFromNode(sNode* pixel) {
-        uint8_t color = std::clamp<float>(pixel->cost / 10.0, 0, 255);
+    // olc::Pixel pixelFromNode(sNode *pixel)
+    // {
+    //     uint8_t color = std::clamp<float>(pixel->cost / 10.0, 0, 255);
 
-        if (indexFromXY(pixel->x, pixel->y) == searchIndex)
-        {
-            return olc::Pixel(255,0,255, color + 25);
-        }
-        return olc::Pixel(color, color, color);
-    }
+    //     if (indexFromXY(pixel->x, pixel->y) == searchIndex)
+    //     {
+    //         return olc::Pixel(255, 0, 255, color + 25);
+    //     }
+    //     return olc::Pixel(color, color, color);
+    // }
 
     void UpdateMap() // draws the map with most current data
     {
         for (int x = 0; x < ScreenWidth(); x++)
             for (int y = 0; y < ScreenHeight(); y++)
             {
-                uint32_t index = indexFromXY(x,y);
+                uint32_t index = indexFromXY(x, y);
                 switch (nodes[index].pixelType)
                 {
                 case Type::defualtPixel:
@@ -221,13 +259,20 @@ private:
                     Draw(x, y, olc::Pixel(olc::GREEN));
                     break;
                 case Type::pathPixel:
+                    Draw(x, y, olc::Pixel(olc::YELLOW));
+                    if (index == searchIndex)
+                    {
+                        Draw(x, y, olc::Pixel(olc::MAGENTA));
+                    }
+                    break;
                 case Type::searchedPixel:
-                    Draw(x, y, pixelFromNode(&nodes[index]));
+                    Draw(x, y, olc::Pixel(olc::CYAN));
+                    //Draw(x, y, pixelFromNode(&nodes[index]));
                     break;
                 default:
                     break;
                 }
-        };
+            };
 
         FillRect(GetMouseX(), GetMouseY(), 1, 1, olc::Pixel(0, 0, 0, 64));
         return;
